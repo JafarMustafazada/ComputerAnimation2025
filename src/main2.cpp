@@ -94,18 +94,32 @@ void init(int argc, char **argv) {
 		// default loop path (square)
 		motion.addKey(glm::vec3(0.0f, 0.0f, 0.0f), glm::quat(glm::vec3(0.0f, glm::radians(0.0f), 0.0f)));
 		motion.addKey(glm::vec3(4.0f, 0.0f, 0.0f), glm::quat(glm::vec3(0.0f, glm::radians(0.0f), 0.0f)));
-		motion.addKey(glm::vec3(4.0f, 0.0f, 4.0f), glm::quat(glm::vec3(0.0f, glm::radians(90.0f), 0.0f)));
-		motion.addKey(glm::vec3(0.0f, 0.0f, 4.0f), glm::quat(glm::vec3(0.0f, glm::radians(180.0f), 0.0f)));
+		motion.addKey(glm::vec3(4.0f, 0.0f, 4.0f), glm::quat(glm::vec3(0.0f, glm::radians(0.0f), 0.0f)));
+		motion.addKey(glm::vec3(0.0f, 0.0f, 4.0f), glm::quat(glm::vec3(0.0f, glm::radians(0.0f), 0.0f)));
 	}
 
-	// instantiate figure and load parts (if partsList empty, fallback model is used)
+	// instantiate figure
 	figure = std::make_unique<ArticulatedFigure>();
-	figure->loadParts(partsList);
+
+	// Load models from partsList and build a biped using the generic FK figure.
+	// partsList convention: [torso, upperL, lowerL, upperR, lowerR] (partial allowed)
+	auto loadIf = [&](size_t idx)->std::shared_ptr<Model>{
+		if (idx < partsList.size()) return figure->loadModelOrFallback(partsList[idx]);
+		return nullptr;
+	};
+	std::shared_ptr<Model> torsoModel = loadIf(0);
+	// prefer left upper/lower, fallback to right if left missing
+	std::shared_ptr<Model> upperModel = loadIf(1);
+	if (!upperModel) upperModel = loadIf(3);
+	std::shared_ptr<Model> lowerModel = loadIf(2);
+	if (!lowerModel) lowerModel = loadIf(4);
+
+	figure->buildDefaultBiped(torsoModel, upperModel, lowerModel);
 }
 
 // each frame update
 void update() {
-	motionTime += 0.01f; // speed
+	motionTime += 0.006f; // speed
 	if (motionTime > 1.0f) motionTime = 0.0f;
 	renderer.modelMat = motion.getTransform(motionTime);
 }
@@ -141,6 +155,7 @@ void render() {
 	// scaling root a bit for visual clarity
 	glm::mat4 rootScaled = root * glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
 
+	// draw the figure using generic FK-based articulated figure (no hard-coded limbs)
 	figure->draw(rootScaled, renderer, motionTime);
 	shader.set(renderer.U.uView, view);
 	shader.set(renderer.U.uProj, proj);
