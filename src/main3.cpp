@@ -1,27 +1,34 @@
 #include "oglprojs.h"
 
 #include "oglproj1.h"
+#include "oglproj2.h"
+#include "oglproj3.h"
 
 using namespace oglprojs;
 
 // ============================================================================
-// Application - Manages window, rendering, and animation
+// Application - (changed: update(), render(), createPhysicsScene())
 // ============================================================================
 
 class Application {
   public:
 	int FPS = 60;
 	float motionSpeed = 0.032f;
+	unsigned int seed = 12345; // for proj3
 
   private:
 	GLFWwindow *window = nullptr;
 	int width, height;
 	float time;
 	bool isFirstRender = true;
+	bool isArticulated = false;
 
 	std::unique_ptr<Shader> shader;
-	std::unique_ptr<Mesh> mesh;
+	std::vector<std::unique_ptr<Mesh>> boneMeshes;
+	std::unique_ptr<ArticulatedFigure> articulated;
 	std::shared_ptr<MotionController> motion;
+	PhysicsEngine physics;            // for proj3
+	std::unique_ptr<Mesh> sphereMesh; // for proj3
 
 	OrientationType orientType = OrientationType::Quaternion;
 	InterpType interpType = InterpType::CatmullRom;
@@ -87,6 +94,8 @@ class Application {
 		static const float loopTime = motion->totalDuration();
 		time += motionSpeed;
 		if (time > loopTime) time = 0.0f;
+		float dt = 1.0f / float(FPS);
+		physics.step(dt);
 	}
 
 	void render() {
@@ -119,13 +128,42 @@ class Application {
 		s.set(s.U.uView, view);
 		s.set(s.U.uProj, projection);
 
-		if (mesh) {
+		if (isArticulated) {
+			static std::unique_ptr<ArticulatedFigure> articulated = std::make_unique<ArticulatedFigure>(motion);
+			glm::mat4 *boneModels = new glm::mat4[5];
+			articulated->evaluateBones(time, orientType, interpType, boneModels);
+
+			// torso: draw original mesh at torso transform (assuming mesh is torso)
+			renderMesh(*boneMeshes[0].get(), boneModels[0]);
+
+			// draw limbs (thigh/shin):
+			glm::mat4 thighScale = glm::scale(glm::mat4(1.0f), glm::vec3(0.25f, articulated->thighLength * 1.0f, 0.25f));
+			glm::mat4 shinScale = glm::scale(glm::mat4(1.0f), glm::vec3(0.25f, articulated->shinLength * 1.0f, 0.25f));
+
+			// left thigh (index 1), left shin (index 2)
+			renderMesh(*boneMeshes[1].get(), boneModels[1] * thighScale);
+			renderMesh(*boneMeshes[2].get(), boneModels[2] * shinScale);
+
+			// right thigh (index 3), right shin (index 4)
+			renderMesh(*boneMeshes[3].get(), boneModels[3] * thighScale);
+			renderMesh(*boneMeshes[4].get(), boneModels[4] * shinScale);
+
+		} else if (!boneMeshes.empty()) {
 			glm::mat4 model = glm::mat4(1.0f);
 			if (motion) {
 				Transform trans = motion->evaluate(time, orientType, interpType);
 				model = trans.toMatrix();
 			}
-			renderMesh(*mesh.get(), model);
+			renderMesh(*boneMeshes[0].get(), model);
+		}
+
+		// Render physics spheres
+		if (sphereMesh && shader) {
+			for (const auto &b : physics.bodies) {
+				glm::mat4 model = glm::translate(glm::mat4(1.0f), b.position) * glm::mat4_cast(b.orientation) *
+				                  glm::scale(glm::mat4(1.0f), glm::vec3(b.radius));
+				renderMesh(*sphereMesh.get(), model);
+			}
 		}
 	}
 
@@ -159,7 +197,7 @@ class Application {
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-		window = glfwCreateWindow(width, height, "OpenGL Project #1", nullptr, nullptr);
+		window = glfwCreateWindow(width, height, "OpenGL Project #3", nullptr, nullptr);
 		if (!window) {
 			glfwTerminate();
 			return false;
@@ -181,11 +219,54 @@ class Application {
 
 	void setController(std::shared_ptr<MotionController> controller) { motion = controller; }
 
-	void loadModel(const std::string &filename) { mesh = ObjLoader::load(filename); }
+	void loadModels(std::vector<std::string> filenames) {
+		boneMeshes.clear();
+		for (const auto &filename : filenames) boneMeshes.push_back(ObjLoader::load(filename));
+	}
+
+	bool enableArticulated(bool enable = true) {
+		if (enable && boneMeshes.size() >= 5 && motion) {
+			isArticulated = true;
+			articulated = std::make_unique<ArticulatedFigure>(motion);
+		}
+		if (!enable) isArticulated = false;
+		return isArticulated;
+	}
 
 	void setInterpolation(OrientationType ot, InterpType it) {
 		orientType = ot;
 		interpType = it;
+	}
+
+	void createPhysicsScene(int N = 6) {
+		// create sphere mesh once
+		if (!sphereMesh) sphereMesh = GeometryFactory::createSphere(1.0f, 20, 12);
+
+		// adding a few spheres with varying radius and initial velocities
+		physics.bodies.clear();
+		srand(seed);
+		for (int i = 0; i < N; ++i) {
+			RigidBody b;
+			b.radius = 0.25f + 0.15f * (i % 3);
+			b.mass = glm::max(0.5f, b.radius * b.radius); // scale mass
+			b.position = glm::vec3((i - N / 2) * 0.6f, 2.0f + i * 0.3f, (i % 2 == 0) ? -0.5f : 0.5f);
+			b.velocity = glm::vec3((i % 2 ? 1.0f : -1.0f) * 0.5f, 0.0f, (i % 3 - 1) * 0.2f);
+			b.orientation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+			b.angularVelocity = glm::vec3(0.0f, (i % 2 ? 1.0f : -1.0f) * 0.5f, 0.0f);
+			b.restitution = 0.5f + 0.1f * (i % 3);
+			b.finalizeParams();
+			physics.addBody(b);
+		}
+
+		// adding a heavier static object (mass = 0 => static)
+		RigidBody staticB;
+		staticB.radius = 1.2f;
+		staticB.mass = 0.0f;
+		staticB.position = glm::vec3(3.0f, 0.9f, 0.0f);
+		staticB.invMass = 0.0f;
+		staticB.invInertia = 0.0f;
+		staticB.restitution = 0.2f;
+		physics.addBody(staticB);
 	}
 
 	void run() {
@@ -239,7 +320,7 @@ void parseKeyframe(const std::string &str, MotionController &motion) {
 }
 
 void parseIO(int argc, char **argv, Application &app) {
-	std::string fn = "teapot.obj";
+	std::vector<std::string> fnVec; //= {"teapot.obj"};
 	auto motion = std::make_shared<MotionController>();
 	OrientationType orientType = OrientationType::Quaternion;
 	InterpType interpType = InterpType::CatmullRom;
@@ -259,36 +340,51 @@ void parseIO(int argc, char **argv, Application &app) {
 			else if (t == "bspline" || t == "1") interpType = InterpType::BSpline;
 			else std::cerr << "Unknown interpolation type: " << t << "\n";
 			continue;
-		} else if (args == "-m" && i + 1 < argc) {
-			fn = argv[++i];
-			continue;
 		} else if (args == "-kf" && i + 1 < argc) {
 			std::string kfs = argv[++i];
 			std::stringstream ss(kfs);
 			std::string kf;
 			while (std::getline(ss, kf, ';')) { parseKeyframe(kf, *motion); }
 			continue;
+		} else if (args == "-fn" && i + 1 < argc) {
+			std::string fn = argv[++i];
+			fnVec.push_back(fn);
+			continue;
+		} else if (args == "-articulated") {
+			app.enableArticulated();
+			continue;
+		} else if (args == "-seed" && i + 1 < argc) {
+			app.seed = static_cast<unsigned int>(std::stoi(argv[++i]));
+			continue;
+		} else if (args == "-physicscene" && i + 1 < argc) {
+			int N = std::stoi(argv[++i]);
+			app.createPhysicsScene(N);
+			continue;
 		} else if (args == "-h" || args == "--help") {
 			std::cout << "Usage: " << argv[0] << " [options]\n"
 			          << "Options:\n"
-			          << "  -m <model.obj>           Load model from OBJ file (default: teapot.obj)\n"
 			          << "  -ot <type>               Orientation type: quaternion|0 or euler|1 (default: quaternion)\n"
 			          << "  -it <type>               Interpolation type: catmullrom|0 or bspline|1 (default: catmullrom)\n"
 			          << "  -kf <kf1;kf2;...>        Keyframes in format x,y,z:e1,e2,e3 separated by semicolons\n"
+			          << "  -fn <filename>           Additional model filename to load (OBJ format)\n"
+			          << "  -articulated             Enable articulated figure rendering (requires 5 meshes)\n"
+			          << " example: -fn data/n1.obj, -fn data/n2.obj, -fn data/n3.obj, -fn data/nr.obj, -fn data/n5.obj.\n"
+			          << " articulated figure order: torso, left thigh, left shin, right thigh, right shin.\n"
+			          << "  -seed <number>           Seed for random number generator in physics scene (default: 12345)\n"
+			          << "  -physicscene <N>         Create physics scene with N spheres (default: 6)\n"
 			          << "  -h, --help               Show this help message\n";
 			exit(0);
 		}
 	}
 
 	if (motion->totalDuration() == 0.0f) {
-		// Add default keyframes if none provided
 		motion->addKeyframe(0.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f));
 		motion->addKeyframe(2.0f, glm::vec3(2.0f, 1.0f, 0.0f), glm::vec3(0.0f, glm::radians(90.0f), 0.0f));
 		motion->addKeyframe(4.0f, glm::vec3(-2.0f, 1.0f, 0.0f), glm::vec3(0.0f, glm::radians(180.0f), glm::radians(90.0f)));
-		motion->addKeyframe(6.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f));
+		motion->addKeyframe(6.0f, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f)); //
 	}
 
-	app.loadModel(fn);
+	app.loadModels(fnVec);
 	app.setController(motion);
 	app.setInterpolation(orientType, interpType);
 }
@@ -296,6 +392,7 @@ void parseIO(int argc, char **argv, Application &app) {
 int main(int argc, char **argv) {
 	Application app(800, 600);
 	if (!app.initialize()) return -1;
+	app.createPhysicsScene(); // create physics scene (for proj3)
 	parseIO(argc, argv, app);
 	app.run();
 	return 0;

@@ -3,127 +3,126 @@
 
 #include "oglprojs.h"
 
-#include <glad/glad.h>
-
-#include <GLFW/glfw3.h>
-
 namespace oglprojs {
-// Motion controller
-enum OrientationType {
+
+// ============================================================================
+// Core Types
+// ============================================================================
+
+enum class OrientationType {
 	Quaternion,
 	Euler
 };
-enum InterpType {
+enum class InterpType {
 	CatmullRom,
 	BSpline
 };
 
-struct Keyframe {
-	glm::vec3 position;
-	glm::vec3 euler; // Euler angles in radians
-	glm::quat quat;  // Quaternion
+struct Transform {
+	glm::vec3 position{0.0f};
+	glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+	glm::vec3 scale{1.0f};
+
+	Transform() = default;
+	Transform(const glm::vec3 &pos, const glm::quat &rot, const glm::vec3 &scl = glm::vec3(1.0f))
+	    : position(pos), rotation(rot), scale(scl) {}
+
+	glm::mat4 toMatrix() const {
+		return glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale);
+	}
 };
 
+struct Keyframe {
+	float time;
+	Transform transform;
+
+	Keyframe(float t, const Transform &trans) : time(t), transform(trans) {}
+};
+
+// ============================================================================
+// Motion Controller
+// ============================================================================
+
 class MotionController {
-  public:
-	std::vector<Keyframe> keys;
-	OrientationType orientType = OrientationType::Quaternion;
-	InterpType interpType = InterpType::CatmullRom;
+	std::vector<Keyframe> keyframes;
+	float prevTime = 0.0f;
 
-	// Add a keyframe (Euler or Quaternion)
-	void addKey(const glm::vec3 &pos, const glm::vec3 &euler) {
-		Keyframe k;
-		k.position = pos;
-		k.euler = euler;
-		k.quat = glm::quat(euler);
-		keys.push_back(k);
-	}
-	void addKey(const glm::vec3 &pos, const glm::quat &quat) {
-		Keyframe k;
-		k.position = pos;
-		k.quat = quat;
-		k.euler = glm::eulerAngles(quat);
-		keys.push_back(k);
+	static glm::vec3 catmullRom(const glm::vec3 &p0, const glm::vec3 &p1, const glm::vec3 &p2, const glm::vec3 &p3, float t) {
+		const float t2 = t * t, t3 = t2 * t;
+		return 0.5f *
+		       ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 + (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
 	}
 
-	glm::vec3 getPosition(int i, int &maxVal) const {
-		int clampedIndex = glm::clamp(i, 0, maxVal);
-		return keys[clampedIndex].position;
-	};
-
-	glm::vec3 interpolateCatmullRom(glm::vec3 &p0, glm::vec3 &p1, glm::vec3 &p2, glm::vec3 &p3, float t) const {
-		glm::vec3 a = 2.0f * p1;
-		glm::vec3 b = -p0 + p2;
-		glm::vec3 c = 2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3;
-		glm::vec3 d = -p0 + 3.0f * p1 - 3.0f * p2 + p3;
-
-		// Applied Horner's method
-		return 0.5f * (a + t * (b + t * (c + t * d)));
+	static glm::vec3 bSpline(const glm::vec3 &p0, const glm::vec3 &p1, const glm::vec3 &p2, const glm::vec3 &p3, float t) {
+		const float t2 = t * t, t3 = t2 * t;
+		const float b0 = (1.0f - 3.0f * t + 3.0f * t2 - t3) / 6.0f;
+		const float b1 = (4.0f - 6.0f * t2 + 3.0f * t3) / 6.0f;
+		const float b2 = (1.0f + 3.0f * t + 3.0f * t2 - 3.0f * t3) / 6.0f;
+		const float b3 = t3 / 6.0f;
+		return b0 * p0 + b1 * p1 + b2 * p2 + b3 * p3;
 	}
 
-	glm::vec3 interpolateBSpline(glm::vec3 &p0, glm::vec3 &p1, glm::vec3 &p2, glm::vec3 &p3, float t) const {
-		float t2 = t * t;
-		float t3 = t2 * t;
-		float oneMinusT = 1.0f - t;
+	glm::vec3 interpolatePosition(int i, float t, InterpType type) const {
+		const int n = keyframes.size();
+		const glm::vec3 p0 = keyframes[std::max(0, i - 1)].transform.position;
+		const glm::vec3 p1 = keyframes[i].transform.position;
+		const glm::vec3 p2 = keyframes[i + 1].transform.position;
+		const glm::vec3 p3 = keyframes[std::min(n - 1, i + 2)].transform.position;
 
-		float basis0 = oneMinusT * oneMinusT * oneMinusT / 6.0f;
-		float basis1 = (3.0f * t3 - 6.0f * t2 + 4.0f) / 6.0f;
-		float basis2 = (-3.0f * t3 + 3.0f * t2 + 3.0f * t + 1.0f) / 6.0f;
-		float basis3 = t3 / 6.0f;
-
-		return basis0 * p0 + basis1 * p1 + basis2 * p2 + basis3 * p3;
+		return (type == InterpType::CatmullRom) ? catmullRom(p0, p1, p2, p3, t) : bSpline(p0, p1, p2, p3, t);
 	}
 
-	glm::vec3 interpPos(float t) const {
-		int numKeys = keys.size();
-		if (numKeys == 0) return glm::vec3(0);
-		if (numKeys == 1) return keys[0].position;
-
-		// Map t from [0,1] to segment range
-		int maxVal = numKeys - 1;
-		float segmentFloat = t * maxVal;
-		int segmentIndex = glm::clamp(int(segmentFloat), 0, numKeys - 2);
-		float localT = segmentFloat - segmentIndex;
-
-		// Get control points for spline
-		glm::vec3 p0 = getPosition(segmentIndex - 1, maxVal);
-		glm::vec3 p1 = getPosition(segmentIndex, maxVal);
-		glm::vec3 p2 = getPosition(segmentIndex + 1, maxVal);
-		glm::vec3 p3 = getPosition(segmentIndex + 2, maxVal);
-
-		if (interpType == InterpType::CatmullRom) return interpolateCatmullRom(p0, p1, p2, p3, localT);
-		else return interpolateBSpline(p0, p1, p2, p3, localT);
-	}
-
-	// Interpolate orientation
-	glm::quat interpQuat(float t) const {
-		int numKeys = keys.size();
-		if (numKeys == 0) return glm::quat();
-		if (numKeys == 1) return keys[0].quat;
-
-		float segmentFloat = t * (numKeys - 1);
-		int segmentIndex = glm::clamp(int(segmentFloat), 0, numKeys - 2);
-		float localT = segmentFloat - segmentIndex;
-
-		if (orientType == OrientationType::Quaternion) {
-			const glm::quat &startQuat = keys[segmentIndex].quat;
-			const glm::quat &endQuat = keys[segmentIndex + 1].quat;
-			return glm::slerp(startQuat, endQuat, localT);
+	glm::quat interpolateRotation(int i, float t, OrientationType type) const {
+		if (type == OrientationType::Quaternion) {
+			return glm::slerp(keyframes[i].transform.rotation, keyframes[i + 1].transform.rotation, t);
 		} else {
-			const glm::vec3 &startEuler = keys[segmentIndex].euler;
-			const glm::vec3 &endEuler = keys[segmentIndex + 1].euler;
-			glm::vec3 interpolatedEuler = glm::mix(startEuler, endEuler, localT);
-			return glm::quat(interpolatedEuler);
+			const glm::vec3 e1 = glm::eulerAngles(keyframes[i].transform.rotation);
+			const glm::vec3 e2 = glm::eulerAngles(keyframes[i + 1].transform.rotation);
+			return glm::quat(glm::mix(e1, e2, t));
 		}
 	}
 
-	// Get transform matrix at t (0..1)
-	glm::mat4 getTransform(float t) const {
-		glm::vec3 pos = interpPos(t);
-		glm::quat rot = interpQuat(t);
-		glm::mat4 T = glm::translate(glm::mat4(1), pos);
-		glm::mat4 R = glm::mat4_cast(rot);
-		return T * R;
+  public:
+	void addKeyframe(float time, const glm::vec3 &pos, const glm::quat &rot, const glm::vec3 &scl = glm::vec3(1.0f)) {
+		if (time <= prevTime) time = prevTime + 0.001f;
+		prevTime = time;
+		keyframes.push_back({time, {pos, glm::normalize(rot), scl}});
+		std::sort(keyframes.begin(), keyframes.end(), [](const Keyframe &a, const Keyframe &b) { return a.time < b.time; });
+	}
+
+	void addKeyframe(const glm::vec3 &pos, const glm::quat &rot, const glm::vec3 &scl = glm::vec3(1.0f)) {
+		prevTime += 1.0f;
+		keyframes.push_back({prevTime, {pos, glm::normalize(rot), scl}});
+		std::sort(keyframes.begin(), keyframes.end(), [](const Keyframe &a, const Keyframe &b) { return a.time < b.time; });
+	}
+
+	void addKeyframe(float time, const glm::vec3 &pos, const glm::vec3 &euler) { addKeyframe(time, pos, glm::quat(euler)); }
+	void addKeyframe(const glm::vec3 &pos, const glm::vec3 &euler) { addKeyframe(pos, glm::quat(euler)); }
+
+	float totalDuration() const {
+		if (keyframes.empty()) return 0.0f;
+		return keyframes.back().time - keyframes.front().time;
+	}
+
+	Transform evaluate(float t, OrientationType orientType, InterpType interpType) const {
+		if (keyframes.empty()) return Transform();
+		if (keyframes.size() == 1) return keyframes[0].transform;
+
+		// Find segment
+		int i = 0;
+		for (; i < keyframes.size() - 1; i++) {
+			if (t <= keyframes[i + 1].time) break;
+		}
+
+		const float t0 = keyframes[i].time;
+		const float t1 = keyframes[i + 1].time;
+		const float localT = (t1 > t0) ? (t - t0) / (t1 - t0) : 0.0f;
+
+		Transform result;
+		result.position = interpolatePosition(i, localT, interpType);
+		result.rotation = interpolateRotation(i, localT, orientType);
+		result.scale = glm::mix(keyframes[i].transform.scale, keyframes[i + 1].transform.scale, localT);
+		return result;
 	}
 };
 } // namespace oglprojs

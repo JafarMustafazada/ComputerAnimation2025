@@ -3,11 +3,17 @@
 	- [Description](#description)
 		- [Project 1](#project-1)
 		- [Project 2](#project-2)
+		- [Project 3](#project-3)
 	- [Requirments](#requirments)
 	- [How To Build](#how-to-build)
 		- [Win32](#build-in-windows)
 		- [Linux](#build-in-linux)
 	- [How To Use](#how-to-use)
+		- [Project 1 Adds](#project-1-adds)
+		- [Project 2 Adds](#project-2-adds)
+		- [Project 3 Adds](#project-3-adds)
+
+---
 
 ## Description
 
@@ -21,6 +27,12 @@ Motion controlling example in c++ using modern opengl libraries.
 
 Motion of an articulated figure.
 
+### Project 3.
+
+Example of physics.
+
+---
+
 ## Requirments
 
 For building purpose.
@@ -28,6 +40,8 @@ For building purpose.
 - `cmake`
 - `c++ compiler` (like Visual Studio 17 2022 or g++)
 - `X11` (on linux platform only).
+
+---
 
 ## How to Build
 
@@ -62,17 +76,29 @@ Then build with (will put binary in `"path/to/project/out/build/gnu1-release/bin
 
 - `cmake --build out/build/gnu1-release`
 
+---
+
 ## How to Use
 
-Here is command options:
+Use whatever header files you need, each made for to improve aviable features using previus one.
 
-- -ot Orientation type: quat/quaternion/0 (default), euler/1
-- -it Interpolation type: crspline/catmullrom/0 (default), bspline/1
-- -kf Keyframes, format: "x,y,z:e1,e2,e3;..." (Euler angles in degrees)
-- -h Show this help message\n";
+Each `cpp` project `N` have commands from project `N-1`.
 
-Project 1 - specific:
-- [-m File_path], loads models with `.obj` extension (default: cube or `teapot.obj` file if it exist)
+### Project 1 Adds
 
-Project 2 - specific:
-- [-parts torso.obj,upperL.obj,lowerL.obj,upperR.obj,lowerR.obj]
+-  -ot \<type>               Orientation type: quaternion|0 or euler|1 (default: quaternion)
+-  -it \<type>               Interpolation type: catmullrom|0 or bspline|1 (default: catmullrom)
+-  -kf \<kf1;kf2;...>        Keyframes in format x,y,z:e1,e2,e3 separated by semicolons
+-  -fn \<filename>           Additional model filename to load (OBJ format)
+-  -h, --help                Show this help message
+
+### Project 2 Adds
+
+-  -articulated             Enable articulated figure rendering (requires 5 meshes)
+- example: -fn data/n1.obj, -fn data/n2.obj, -fn data/n3.obj, -fn data/nr.obj, -fn data/n5.obj.
+- articulated figure order: torso, left thigh, left shin, right thigh, right shin.
+
+### Project 3 Adds
+
+-  -seed \<number>           Seed for random number generator in physics scene (default: 12345)
+-  -physicscene \<N>         Create physics scene with N spheres (default: 6)

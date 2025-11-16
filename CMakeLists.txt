@@ -51,7 +51,9 @@ add_subdirectory(src/glad1)
 # file(GLOB_RECURSE MY_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 set(MY_SOURCES
 	# src/main1.cpp # For project 1
-	src/main2.cpp # For project 2
+	# src/main2.cpp # For project 2
+	src/main3.cpp # For project 3
+	# src/main4.cpp # For project 4
 )
 add_executable(oglproj1 ${MY_SOURCES})
 ### _________________________________________________________________________________________________________

@@ -2,6 +2,7 @@ BasedOnStyle: Microsoft
 IndentWidth: 4
 TabWidth: 4
 UseTab: ForIndentation
+# AccessModifierOffset: 0
 
 BraceWrapping:
   AfterClass:      false
@@ -15,10 +16,11 @@ BraceWrapping:
   BeforeElse:      false
   IndentBraces:    false
 
-AllowShortIfStatementsOnASingleLine: AllIfsAndElse
-AllowShortBlocksOnASingleLine: true
 AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
 
+SortIncludes: true
+AllowShortBlocksOnASingleLine: true
 AllowShortLoopsOnASingleLine: true
 AllowShortCaseLabelsOnASingleLine: true
 
