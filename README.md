@@ -4,6 +4,7 @@
 		- [Project 1](#project-1)
 		- [Project 2](#project-2)
 		- [Project 3](#project-3)
+		- [Project 4](#project-4)
 	- [Requirments](#requirments)
 	- [How To Build](#how-to-build)
 		- [Win32](#build-in-windows)
@@ -12,6 +13,7 @@
 		- [Project 1 Adds](#project-1-adds)
 		- [Project 2 Adds](#project-2-adds)
 		- [Project 3 Adds](#project-3-adds)
+		- [Project 4 Adds](#project-4-adds)
 
 ---
 
@@ -29,7 +31,11 @@ Motion of an articulated figure.
 
 ### Project 3.
 
-Example of physics.
+Rigid-body motion with gravity, sphere to sphere and sphere to floor collisions.
+
+### Project 4.
+
+Reynolds-like behavioral flock (boids) system.
 
 ---
 
@@ -102,3 +108,7 @@ Each `cpp` project `N` have commands from project `N-1`.
 
 -  -seed \<number>           Seed for random number generator in physics scene (default: 12345)
 -  -physicscene \<N>         Create physics scene with N spheres (default: 6)
+
+### Project 4 Adds
+
+-  -flock \<N>                Create flocks with N boids (default: 48)
