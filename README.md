@@ -5,6 +5,7 @@
 		- [Project 2](#project-2)
 		- [Project 3](#project-3)
 		- [Project 4](#project-4)
+		- [Project 5](#project-5)
 	- [Requirments](#requirments)
 	- [How To Build](#how-to-build)
 		- [Win32](#build-in-windows)
@@ -14,6 +15,7 @@
 		- [Project 2 Adds](#project-2-adds)
 		- [Project 3 Adds](#project-3-adds)
 		- [Project 4 Adds](#project-4-adds)
+		- [Project 5 Adds](#project-5-adds)
 
 ---
 
@@ -36,6 +38,10 @@ Rigid-body motion with gravity, sphere to sphere and sphere to floor collisions.
 ### Project 4.
 
 Reynolds-like behavioral flock (boids) system.
+
+### Project 5.
+
+Particle system with Perlin Noise.
 
 ---
 
@@ -112,3 +118,28 @@ Each `cpp` project `N` have commands from project `N-1`.
 ### Project 4 Adds
 
 -  -flock \<N>                Create flocks with N boids (default: 48)
+
+### Project 5 Adds
+
+- Particle Emitter Keyboard Controls:
+-   CTRL+0                   Reset: disable articulated figure, flock, and particles
+-   CTRL+1                   Load particle preset: Fountain
+-   CTRL+2                   Load particle preset: Plasma
+-   CTRL+3                   Load particle preset: Smoke
+-   CTRL+4                   Load particle preset: Snow
+-   CTRL+5                   Load particle preset: Fire_Long
+- 
+-   CTRL+Q / SHIFT+Q         Increase / decrease scale factor
+-   CTRL+W / SHIFT+W         Increase / decrease maxParticles
+-   CTRL+E / SHIFT+E         Increase / decrease lifetimeMax
+-   CTRL+R / SHIFT+R         Increase / decrease spread
+-   CTRL+T / SHIFT+T         Increase / decrease sizeMin
+-   CTRL+Y / SHIFT+Y         Increase / decrease sizeMax
+-   CTRL+Z / SHIFT+Z         Increase / decrease noiseAmplitude
+-   CTRL+X / SHIFT+X         Increase / decrease noiseFrequency
+-   CTRL+C / SHIFT+C         Increase / decrease noiseTimeScale
+- 
+- Notes:
+-   - All CTRL combinations increase values.
+-   - All SHIFT combinations decrease values.
+-   - Values cannot go below zero.
