@@ -4,11 +4,14 @@
 #include "oglproj2.h"
 #include "oglproj3.h"
 #include "oglproj4.h"
+#include "oglproj5.h"
+
+#include "oglproj5_presets.h"
 
 using namespace oglprojs;
 
 // ============================================================================
-// Application - (changed: update(), render())
+// Application - (changed: update(), render(), initialize(), keyCallback())
 // ============================================================================
 
 class Application {
@@ -35,9 +38,11 @@ class Application {
 	PhysicsEngine physics;
 	std::unique_ptr<Mesh> sphereMesh;
 
-	// for proj4
 	std::unique_ptr<Flock> flock;
-	std::unique_ptr<Mesh> boidMesh; // visual for boids (tiny sphere or cone)
+	std::unique_ptr<Mesh> boidMesh;
+
+	std::unique_ptr<ParticleEmitter> particleEmitter;
+	std::unique_ptr<Mesh> particleMesh; // reuse sphere mesh
 
 	void createShader() {
 		const std::string vertexSrc = R"(
@@ -103,8 +108,26 @@ class Application {
 		float dt = 1.0f / float(FPS);
 		physics.step(dt);
 
-		// update flock
 		if (flock) flock->update(dt, &physics);
+
+		if (particleEmitter) {
+			// setting emitter transform from the root motion if motion controller exists
+			if (motion && particleEmitter->params.localSpace) {
+				Transform tr = motion->evaluate(time, orientType, interpType);
+				particleEmitter->setTransform(tr.toMatrix());
+			}
+			particleEmitter->update(dt, particleEmitter->params.collideWithPhysics ? &physics : nullptr, time);
+			particleEmitter->applyMorphs();
+		}
+	}
+
+	void renderMesh(const Mesh &meshPtr, const glm::mat4 &model) {
+		glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+		Shader &s = *shader;
+		s.set(s.U.uModel, model);
+		s.set(s.U.uNormal, normalMatrix);
+		s.set(s.U.uObjectColor, glm::vec3(0.8f, 0.5f, 0.3f));
+		meshPtr.draw();
 	}
 
 	void render() {
@@ -175,7 +198,6 @@ class Application {
 			}
 		}
 
-		// for proj4
 		if (flock && boidMesh && shader) {
 			for (const auto &b : flock->boids) {
 				// orient boid to face velocity direction if velocity significant
@@ -204,15 +226,19 @@ class Application {
 				renderMesh(*boidMesh.get(), model);
 			}
 		}
-	}
 
-	void renderMesh(const Mesh &meshPtr, const glm::mat4 &model) {
-		glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-		Shader &s = *shader;
-		s.set(s.U.uModel, model);
-		s.set(s.U.uNormal, normalMatrix);
-		s.set(s.U.uObjectColor, glm::vec3(0.8f, 0.5f, 0.3f));
-		meshPtr.draw();
+		if (particleEmitter && particleMesh && shader) {
+			Shader &s = *shader;
+			s.use();
+			// We'll vary color per particle by setting uniform before each draw (cheap)
+			particleEmitter->renderAll([&](const glm::mat4 &model, const glm::vec4 &color, float size) {
+				// set color (material)
+				s.set(s.U.uObjectColor, glm::vec3(color.r, color.g, color.b));
+				// optionally fade alpha: we don't have alpha blending set in shader; to enable blending:
+				// glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				renderMesh(*particleMesh.get(), model);
+			});
+		}
 	}
 
 	static void framebufferSizeCallback(GLFWwindow *window, int width, int height) {
@@ -222,8 +248,144 @@ class Application {
 		glViewport(0, 0, width, height);
 	}
 
-	static void keyCallback(GLFWwindow *window, int key, int, int action, int) {
+	static void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+		auto *app = static_cast<Application *>(glfwGetWindowUserPointer(window));
+		static float value = 10;
+		static EmitterConfigurator cfg = EmitterConfigurator::preset(EmitterConfigurator::Fire);
 		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) glfwSetWindowShouldClose(window, GLFW_TRUE);
+		if (key == GLFW_KEY_0 && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			app->boneMeshes.clear();
+			app->isArticulated = false;
+			app->flock = nullptr;
+			app->particleEmitter = nullptr;
+			std::cout << "\n[CTRL+0] change preset to: null" << std::endl;
+		}
+		if (key == GLFW_KEY_1 && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg = EmitterConfigurator::preset(EmitterConfigurator::Fountain);
+			app->createParticleEmitter(cfg.params);
+			std::cout << "\n[CTRL+1] change preset to: Fountain" << std::endl;
+		}
+		if (key == GLFW_KEY_2 && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg = EmitterConfigurator::preset(EmitterConfigurator::Plasma);
+			app->createParticleEmitter(cfg.params);
+			std::cout << "\n[CTRL+2] change preset to: Plasma" << std::endl;
+		}
+		if (key == GLFW_KEY_3 && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg = EmitterConfigurator::preset(EmitterConfigurator::Smoke);
+			app->createParticleEmitter(cfg.params);
+			std::cout << "\n[CTRL+3] change preset to: Smoke" << std::endl;
+		}
+		if (key == GLFW_KEY_4 && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg = EmitterConfigurator::preset(EmitterConfigurator::Snow);
+			app->createParticleEmitter(cfg.params);
+			std::cout << "\n[CTRL+4] change preset to: Snow" << std::endl;
+		}
+		if (key == GLFW_KEY_5 && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg = EmitterConfigurator::preset(EmitterConfigurator::Fire_Long);
+			app->createParticleEmitter(cfg.params);
+			std::cout << "\n[CTRL+5] change preset to: Fire_Long" << std::endl;
+		}
+		if (key == GLFW_KEY_Q && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			value *= 10;
+			std::cout << "\n[CTRL+Q] change scale: " << value << std::endl;
+		}
+		if (key == GLFW_KEY_Q && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			value /= 10;
+			std::cout << "\n[SHIFT+Q] change scale: " << value << std::endl;
+		}
+		if (key == GLFW_KEY_W && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg.params.maxParticles += static_cast<int>(value);
+			std::cout << "\n[CTRL+W] change maxParticles: " << cfg.params.maxParticles << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_W && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			cfg.params.maxParticles -= static_cast<int>(value);
+			if (cfg.params.maxParticles < 0) cfg.params.maxParticles = 0;
+			std::cout << "\n[SHIFT+W] change maxParticles: " << cfg.params.maxParticles << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_E && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg.params.lifetimeMax += value;
+			std::cout << "\n[CTRL+E] change lifetimeMax: " << cfg.params.lifetimeMax << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_E && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			cfg.params.lifetimeMax -= value;
+			if (cfg.params.lifetimeMax < 0) cfg.params.lifetimeMax = 0;
+			std::cout << "\n[SHIFT+E] change lifetimeMax: " << cfg.params.lifetimeMax << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_R && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg.params.spread += value;
+			std::cout << "\n[CTRL+R] change spread: " << cfg.params.spread << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_R && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			cfg.params.spread -= value;
+			if (cfg.params.spread < 0) cfg.params.spread = 0;
+			std::cout << "\n[SHIFT+R] change spread: " << cfg.params.spread << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_T && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg.params.sizeMin += value;
+			std::cout << "\n[CTRL+R] change sizeMin: " << cfg.params.sizeMin << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_T && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			cfg.params.sizeMin -= value;
+			if (cfg.params.sizeMin < 0) cfg.params.sizeMin = 0;
+			std::cout << "\n[SHIFT+R] change sizeMin: " << cfg.params.sizeMin << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_Y && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg.params.sizeMax += value;
+			std::cout << "\n[CTRL+R] change sizeMax: " << cfg.params.sizeMax << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_Y && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			cfg.params.sizeMax -= value;
+			if (cfg.params.sizeMax < 0) cfg.params.sizeMax = 0;
+			std::cout << "\n[SHIFT+R] change sizeMax: " << cfg.params.sizeMax << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_Z && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg.params.noiseAmplitude += value;
+			std::cout << "\n[CTRL+Z] change noiseAmplitude: " << cfg.params.noiseAmplitude << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_Z && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			cfg.params.noiseAmplitude -= value;
+			if (cfg.params.noiseAmplitude < 0) cfg.params.noiseAmplitude = 0;
+			std::cout << "\n[SHIFT+Z] change noiseAmplitude: " << cfg.params.noiseAmplitude << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_X && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg.params.noiseFrequency += value;
+			std::cout << "\n[CTRL+X] change noiseFrequency: " << cfg.params.noiseFrequency << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_X && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			cfg.params.noiseFrequency -= value;
+			if (cfg.params.noiseFrequency < 0) cfg.params.noiseFrequency = 0;
+			std::cout << "\n[SHIFT+X] change noiseFrequency: " << cfg.params.noiseFrequency << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_C && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			cfg.params.noiseTimeScale += value;
+			std::cout << "\n[CTRL+C] change noiseTimeScale: " << cfg.params.noiseTimeScale << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_C && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			cfg.params.noiseTimeScale -= value;
+			if (cfg.params.noiseTimeScale < 0) cfg.params.noiseTimeScale = 0;
+			std::cout << "\n[SHIFT+C] change noiseTimeScale: " << cfg.params.noiseTimeScale << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		// if (key == GLFW_KEY_E && action == GLFW_PRESS) {
+		// 	std::cout << "\n[E] Exporting animation..." << std::endl;
+		// 	// app->exportAnimationToGLB("exported_animation.glb");
+		// 	// as if i have time to implement it with so many finals.
+		// }
 	}
 
   public:
@@ -236,7 +398,7 @@ class Application {
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-		window = glfwCreateWindow(width, height, "OpenGL Project #4", nullptr, nullptr);
+		window = glfwCreateWindow(width, height, "OpenGL Project #5", nullptr, nullptr);
 		if (!window) {
 			glfwTerminate();
 			return false;
@@ -249,7 +411,12 @@ class Application {
 
 		if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) { return false; }
 
-		glEnable(GL_DEPTH_TEST);
+		// glEnable(GL_DEPTH_TEST);
+		glEnable(GL_BLEND);
+		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE); // full additive
+		glDepthMask(GL_FALSE);             // don't write depth for particles (so particles don't occlude each other)
+
 		glViewport(0, 0, width, height);
 
 		createShader();
@@ -328,7 +495,6 @@ class Application {
 		physics.addBody(staticB);
 	}
 
-	// Create flock of N boids
 	void createFlock(int N = 48) {
 		flock = std::make_unique<Flock>(N, seed);
 		if (!boidMesh) boidMesh = GeometryFactory::createSphere(1.0f, 8, 6);
@@ -339,7 +505,39 @@ class Application {
 		flock->wCohesion = 0.9f;
 		flock->wWander = 0.15f;
 		flock->wAvoid = 2.5f;
-		flock->worldRadius = 3.0f;
+		flock->worldRadius = 10.0f;
+	}
+
+	void createParticleEmitter(const EmitterParams &params = EmitterParams()) {
+		particleEmitter = std::make_unique<ParticleEmitter>(params);
+		if (!particleMesh) particleMesh = GeometryFactory::createSphere(1.0f, 10, 8);
+	}
+
+	// convenience to create a tuned interesting emitter / failed to be interesting
+	void createSignedPerlinEmitter() {
+		EmitterParams p;
+		p.emitRate = 600.0f;
+		p.maxParticles = 3000;
+		p.lifetimeMin = 1.0f;
+		p.lifetimeMax = 3.2f;
+		p.sizeMin = 0.03f;
+		p.sizeMax = 0.12f;
+		p.colorStart = glm::vec4(0.9f, 0.4f, 0.1f, 1.0f);
+		p.colorEnd = glm::vec4(0.2f, 0.05f, 0.5f, 0.0f);
+		p.velocityMin = glm::vec3(-0.6f, 2.0f, -0.6f);
+		p.velocityMax = glm::vec3(0.6f, 3.5f, 0.6f);
+		p.gravity = glm::vec3(0.0f, -3.2f, 0.0f);
+		p.drag = 0.6f;
+		p.noiseType = EmitterParams::PERLIN;
+		p.noiseFrequency = 0.9f;
+		p.noiseAmplitude = 2.5f;
+		p.noiseTimeScale = 0.9f;
+		p.spawnShape = EmitterParams::BOX;
+		p.sphereRadius = 0.20f;
+		p.localSpace = true;
+		p.collideWithPhysics = true;
+		p.restitution = 0.35f;
+		createParticleEmitter(p);
 	}
 };
 
@@ -430,7 +628,29 @@ void parseIO(int argc, char **argv, Application &app) {
 			          << "  -seed <number>           Seed for random number generator in physics scene (default: 12345)\n"
 			          << "  -physicscene <N>         Create physics scene with N spheres (default: 6)\n"
 			          << "  -flock <N>               Create flocks with N boids (default: 48)\n"
-			          << "  -h, --help               Show this help message\n";
+			          << "  -h, --help               Show this help message\n"
+			          << "\nParticle Emitter Keyboard Controls:\n"
+			          << "  CTRL+0                   Reset: disable articulated figure, flock, and particles\n"
+			          << "  CTRL+1                   Load particle preset: Fountain\n"
+			          << "  CTRL+2                   Load particle preset: Plasma\n"
+			          << "  CTRL+3                   Load particle preset: Smoke\n"
+			          << "  CTRL+4                   Load particle preset: Snow\n"
+			          << "  CTRL+5                   Load particle preset: Fire_Long\n"
+			          << "\n"
+			          << "  CTRL+Q / SHIFT+Q         Increase / decrease scale factor\n"
+			          << "  CTRL+W / SHIFT+W         Increase / decrease maxParticles\n"
+			          << "  CTRL+E / SHIFT+E         Increase / decrease lifetimeMax\n"
+			          << "  CTRL+R / SHIFT+R         Increase / decrease spread\n"
+			          << "  CTRL+T / SHIFT+T         Increase / decrease sizeMin\n"
+			          << "  CTRL+Y / SHIFT+Y         Increase / decrease sizeMax\n"
+			          << "  CTRL+Z / SHIFT+Z         Increase / decrease noiseAmplitude\n"
+			          << "  CTRL+X / SHIFT+X         Increase / decrease noiseFrequency\n"
+			          << "  CTRL+C / SHIFT+C         Increase / decrease noiseTimeScale\n"
+			          << "\n"
+			          << "Notes:\n"
+			          << "  - All CTRL combinations increase values.\n"
+			          << "  - All SHIFT combinations decrease values.\n"
+			          << "  - Values cannot go below zero.\n";
 			exit(0);
 		}
 	}

@@ -72,7 +72,7 @@ Then build with (will put binary in `"path/to/project/out/build/msvc1/Release/bi
 Install tools:
 
 - `sudo apt update`
-- `sudo apt install -y build-essential cmake pkg-config git libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxfixes-dev libxi-dev libgl1-mesa-dev libudev-dev libxkbcommon-dev`
+- `sudo apt install -y build-essential cmake git pkg-config libglfw3-dev libglm-dev mesa-common-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev`
 
 To build project, first generate the build files with command:
 

@@ -53,7 +53,8 @@ set(MY_SOURCES
 	# src/main1.cpp # For project 1
 	# src/main2.cpp # For project 2
 	# src/main3.cpp # For project 3
-	src/main4.cpp # For project 4
+	# src/main4.cpp # For project 4
+	src/main5.cpp # For project 5
 )
 add_executable(oglproj1 ${MY_SOURCES})
 ### _________________________________________________________________________________________________________

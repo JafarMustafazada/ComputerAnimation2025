@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <corecrt_math_defines.h>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -20,6 +19,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <numbers>
 
 namespace oglprojs {
 
@@ -190,9 +190,9 @@ class GeometryFactory {
 		std::vector<unsigned> indices;
 
 		for (int i = 0; i <= stacks; i++) {
-			float phi = M_PI * i / stacks;
+			float phi = std::numbers::pi * i / stacks;
 			for (int j = 0; j <= slices; ++j) {
-				float theta = 2.0f * M_PI * j / slices;
+				float theta = 2.0f * std::numbers::pi * j / slices;
 
 				float x = radius * sin(phi) * cos(theta);
 				float y = radius * cos(phi);
@@ -222,7 +222,7 @@ class GeometryFactory {
 
 		// Side vertices
 		for (int i = 0; i <= segments; i++) {
-			float theta = 2.0f * M_PI * i / segments;
+			float theta = 2.0f * std::numbers::pi * i / segments;
 			float x = radius * cos(theta);
 			float z = radius * sin(theta);
 			glm::vec3 normal = glm::normalize(glm::vec3(x, 0, z));
