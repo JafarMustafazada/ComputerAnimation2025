@@ -50,7 +50,7 @@ jobs:
     
     - name: Install X11 and build dependencies (Linux) 
     
-    - if: matrix.os == 'ubuntu-latest' 
+      if: matrix.os == 'ubuntu-latest' 
       run: |
         sudo apt-get update sudo apt-get install -y build-essential 
         cmake git pkg-config libglfw3-dev libglm-dev mesa-common-dev 
