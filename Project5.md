@@ -152,18 +152,36 @@ Particle Emitter Keyboard Controls:
   CTRL+4                   Load particle preset: Snow
   CTRL+5                   Load particle preset: Fire_Long
 
-  CTRL+Q / SHIFT+Q         Increase / decrease scale factor
+  CTRL+Q / SHIFT+Q         Increase / decrease scale factor (for adjustments)
   CTRL+W / SHIFT+W         Increase / decrease maxParticles
   CTRL+E / SHIFT+E         Increase / decrease lifetimeMax
   CTRL+R / SHIFT+R         Increase / decrease spread
   CTRL+T / SHIFT+T         Increase / decrease sizeMin
   CTRL+Y / SHIFT+Y         Increase / decrease sizeMax
+
+Color Start (RGBA):
+  CTRL+A / SHIFT+A         Increase / decrease colorStart.r (Red)
+  CTRL+S / SHIFT+S         Increase / decrease colorStart.g (Green)
+  CTRL+D / SHIFT+D         Increase / decrease colorStart.b (Blue)
+  CTRL+J / SHIFT+J         Increase / decrease colorStart.a (Alpha/Transparency)
+
+Color End (RGBA):
+  CTRL+F / SHIFT+F         Increase / decrease colorEnd.r (Red)
+  CTRL+G / SHIFT+G         Increase / decrease colorEnd.g (Green)
+  CTRL+H / SHIFT+H         Increase / decrease colorEnd.b (Blue)
+  CTRL+K / SHIFT+K         Increase / decrease colorEnd.a (Alpha/Transparency)
+
+Noise Settings:
   CTRL+Z / SHIFT+Z         Increase / decrease noiseAmplitude
   CTRL+X / SHIFT+X         Increase / decrease noiseFrequency
   CTRL+C / SHIFT+C         Increase / decrease noiseTimeScale
 
+Particle Mesh:
+  CTRL+V / SHIFT+V         Cycle through particle mesh types (Sphere/Cube/Cylinder)
+
 Notes:
   - All CTRL combinations increase values.
   - All SHIFT combinations decrease values.
+  - Color (RGBA) values are clamped between 0.0 and 1.0.
   - Values cannot go below zero.
 ```

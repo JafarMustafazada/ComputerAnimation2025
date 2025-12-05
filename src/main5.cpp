@@ -67,15 +67,15 @@ class Application {
 
 		const std::string fragmentSrc = R"(
             #version 330 core
-            out vec4 FragColor;
+            layout(location = 0) out vec4 FragColor;
             
             in vec3 FragPos;
             in vec3 Normal;
             
             uniform vec3 lightPos;
             uniform vec3 viewPos;
-            uniform vec3 objectColor;
             uniform vec3 lightColor;
+            uniform vec4 objectColor;
             
             void main() {
                 vec3 norm = normalize(Normal);
@@ -93,8 +93,8 @@ class Application {
                 float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
                 vec3 specular = specularStrength * spec * lightColor;
                 
-                vec3 result = (ambient + diffuse + specular) * objectColor;
-                FragColor = vec4(result, 1.0);
+                vec3 result = (ambient + diffuse + specular) * vec3(objectColor);
+                FragColor = vec4(result, objectColor.a);
             }
         )";
 
@@ -121,18 +121,20 @@ class Application {
 		}
 	}
 
-	void renderMesh(const Mesh &meshPtr, const glm::mat4 &model) {
+	void renderMesh(const Mesh &meshPtr, const glm::mat4 &model, glm::vec4 color = glm::vec4(0.8f, 0.5f, 0.3f, 1.0f)) {
 		glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
 		Shader &s = *shader;
 		s.set(s.U.uModel, model);
 		s.set(s.U.uNormal, normalMatrix);
-		s.set(s.U.uObjectColor, glm::vec3(0.8f, 0.5f, 0.3f));
+		s.set(s.U.uObjectColor, color);
 		meshPtr.draw();
 	}
 
 	void render() {
 		glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		if (!shader) return;
 		Shader &s = *shader;
@@ -230,13 +232,10 @@ class Application {
 		if (particleEmitter && particleMesh && shader) {
 			Shader &s = *shader;
 			s.use();
-			// We'll vary color per particle by setting uniform before each draw (cheap)
 			particleEmitter->renderAll([&](const glm::mat4 &model, const glm::vec4 &color, float size) {
-				// set color (material)
-				s.set(s.U.uObjectColor, glm::vec3(color.r, color.g, color.b));
-				// optionally fade alpha: we don't have alpha blending set in shader; to enable blending:
-				// glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				renderMesh(*particleMesh.get(), model);
+				// glDepthMask(GL_FALSE);
+				// glEnable(GL_BLEND);
+				renderMesh(*particleMesh.get(), model, color);
 			});
 		}
 	}
@@ -251,8 +250,11 @@ class Application {
 	static void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods) {
 		auto *app = static_cast<Application *>(glfwGetWindowUserPointer(window));
 		static float value = 10;
+		static int ivalue = 0;
 		static EmitterConfigurator cfg = EmitterConfigurator::preset(EmitterConfigurator::Fire);
 		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) glfwSetWindowShouldClose(window, GLFW_TRUE);
+		//
+		// presets:
 		if (key == GLFW_KEY_0 && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
 			app->boneMeshes.clear();
 			app->isArticulated = false;
@@ -285,6 +287,8 @@ class Application {
 			app->createParticleEmitter(cfg.params);
 			std::cout << "\n[CTRL+5] change preset to: Fire_Long" << std::endl;
 		}
+		//
+		// scaler
 		if (key == GLFW_KEY_Q && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
 			value *= 10;
 			std::cout << "\n[CTRL+Q] change scale: " << value << std::endl;
@@ -293,6 +297,8 @@ class Application {
 			value /= 10;
 			std::cout << "\n[SHIFT+Q] change scale: " << value << std::endl;
 		}
+		//
+		// usual settings
 		if (key == GLFW_KEY_W && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
 			cfg.params.maxParticles += static_cast<int>(value);
 			std::cout << "\n[CTRL+W] change maxParticles: " << cfg.params.maxParticles << std::endl;
@@ -328,29 +334,131 @@ class Application {
 		}
 		if (key == GLFW_KEY_T && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
 			cfg.params.sizeMin += value;
-			std::cout << "\n[CTRL+R] change sizeMin: " << cfg.params.sizeMin << std::endl;
+			std::cout << "\n[CTRL+T] change sizeMin: " << cfg.params.sizeMin << std::endl;
 			app->createParticleEmitter(cfg.params);
 		}
 		if (key == GLFW_KEY_T && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
 			cfg.params.sizeMin -= value;
 			if (cfg.params.sizeMin < 0) cfg.params.sizeMin = 0;
-			std::cout << "\n[SHIFT+R] change sizeMin: " << cfg.params.sizeMin << std::endl;
+			std::cout << "\n[SHIFT+T] change sizeMin: " << cfg.params.sizeMin << std::endl;
 			app->createParticleEmitter(cfg.params);
 		}
 		if (key == GLFW_KEY_Y && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
 			cfg.params.sizeMax += value;
-			std::cout << "\n[CTRL+R] change sizeMax: " << cfg.params.sizeMax << std::endl;
+			std::cout << "\n[CTRL+Y] change sizeMax: " << cfg.params.sizeMax << std::endl;
 			app->createParticleEmitter(cfg.params);
 		}
 		if (key == GLFW_KEY_Y && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
 			cfg.params.sizeMax -= value;
 			if (cfg.params.sizeMax < 0) cfg.params.sizeMax = 0;
-			std::cout << "\n[SHIFT+R] change sizeMax: " << cfg.params.sizeMax << std::endl;
+			std::cout << "\n[SHIFT+Y] change sizeMax: " << cfg.params.sizeMax << std::endl;
 			app->createParticleEmitter(cfg.params);
 		}
+		//
+		// color start settings
+		if (key == GLFW_KEY_A && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			if (cfg.params.colorStart.r + value > 1.0f) cfg.params.colorStart.r = 1.0f;
+			else cfg.params.colorStart.r += value;
+			std::cout << "\n[CTRL+A] change colorStart-red: " << cfg.params.colorStart.r << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_A && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			if (cfg.params.colorStart.r - value < 0) cfg.params.colorStart.r = 0;
+			else cfg.params.colorStart.r -= value;
+			std::cout << "\n[SHIFT+A] change colorStart-red: " << cfg.params.colorStart.r << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_S && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			if (cfg.params.colorStart.g + value > 1.0f) cfg.params.colorStart.g = 1.0f;
+			else cfg.params.colorStart.g += value;
+			std::cout << "\n[CTRL+S] change colorStart-green: " << cfg.params.colorStart.g << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_S && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			if (cfg.params.colorStart.g - value < 0) cfg.params.colorStart.g = 0;
+			else cfg.params.colorStart.g -= value;
+			std::cout << "\n[SHIFT+S] change colorStart-green: " << cfg.params.colorStart.g << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_D && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			if (cfg.params.colorStart.b + value > 1.0f) cfg.params.colorStart.b = 1.0f;
+			else cfg.params.colorStart.b += value;
+			std::cout << "\n[CTRL+D] change colorStart-blue: " << cfg.params.colorStart.b << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_D && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			if (cfg.params.colorStart.b - value < 0) cfg.params.colorStart.b = 0;
+			else cfg.params.colorStart.b -= value;
+			std::cout << "\n[SHIFT+D] change colorStart-blue: " << cfg.params.colorStart.b << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_J && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			if (cfg.params.colorStart.a + value > 1.0f) cfg.params.colorStart.a = 1.0f;
+			else cfg.params.colorStart.a += value;
+			std::cout << "\n[CTRL+J] change colorStart-transparecy: " << cfg.params.colorStart.a << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_J && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			if (cfg.params.colorStart.a - value < 0) cfg.params.colorStart.a = 0;
+			else cfg.params.colorStart.a -= value;
+			std::cout << "\n[SHIFT+J] change colorStart-transparecy: " << cfg.params.colorStart.a << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		//
+		// color end settings
+		if (key == GLFW_KEY_F && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			if (cfg.params.colorEnd.r + value > 1.0f) cfg.params.colorEnd.r = 1.0f;
+			else cfg.params.colorEnd.r += value;
+			std::cout << "\n[CTRL+A] change colorEnd-red: " << cfg.params.colorEnd.r << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_F && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			if (cfg.params.colorEnd.r - value < 0) cfg.params.colorEnd.r = 0;
+			else cfg.params.colorEnd.r -= value;
+			std::cout << "\n[SHIFT+A] change colorEnd-red: " << cfg.params.colorEnd.r << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_G && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			if (cfg.params.colorEnd.g + value > 1.0f) cfg.params.colorEnd.g = 1.0f;
+			else cfg.params.colorEnd.g += value;
+			std::cout << "\n[CTRL+S] change colorEnd-green: " << cfg.params.colorEnd.g << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_G && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			if (cfg.params.colorEnd.g - value < 0) cfg.params.colorEnd.g = 0;
+			else cfg.params.colorEnd.g -= value;
+			std::cout << "\n[SHIFT+S] change colorEnd-green: " << cfg.params.colorEnd.g << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_H && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			if (cfg.params.colorEnd.b + value > 1.0f) cfg.params.colorEnd.b = 1.0f;
+			else cfg.params.colorEnd.b += value;
+			std::cout << "\n[CTRL+D] change colorEnd-blue: " << cfg.params.colorEnd.b << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_H && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			if (cfg.params.colorEnd.b - value < 0) cfg.params.colorEnd.b = 0;
+			else cfg.params.colorEnd.b -= value;
+			std::cout << "\n[SHIFT+D] change colorEnd-blue: " << cfg.params.colorEnd.b << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_K && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			if (cfg.params.colorEnd.a + value > 1.0f) cfg.params.colorEnd.a = 1.0f;
+			else cfg.params.colorEnd.a += value;
+			std::cout << "\n[CTRL+K] change colorEnd-transparecy: " << cfg.params.colorEnd.a << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		if (key == GLFW_KEY_K && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			if (cfg.params.colorEnd.a - value < 0) cfg.params.colorEnd.a = 0;
+			else cfg.params.colorEnd.a -= value;
+			std::cout << "\n[SHIFT+K] change colorEnd-transparecy: " << cfg.params.colorEnd.a << std::endl;
+			app->createParticleEmitter(cfg.params);
+		}
+		//
+		// noise settings
 		if (key == GLFW_KEY_Z && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
 			cfg.params.noiseAmplitude += value;
-			std::cout << "\n[CTRL+Z] change noiseAmplitude: " << cfg.params.noiseAmplitude << std::endl;
+			std::cout << "\n[CTRL+U] change noiseAmplitude: " << cfg.params.noiseAmplitude << std::endl;
 			app->createParticleEmitter(cfg.params);
 		}
 		if (key == GLFW_KEY_Z && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
@@ -380,6 +488,24 @@ class Application {
 			if (cfg.params.noiseTimeScale < 0) cfg.params.noiseTimeScale = 0;
 			std::cout << "\n[SHIFT+C] change noiseTimeScale: " << cfg.params.noiseTimeScale << std::endl;
 			app->createParticleEmitter(cfg.params);
+		}
+		//
+		// mesh settings
+		if (key == GLFW_KEY_V && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
+			ivalue++;
+			if (ivalue == 3) ivalue = 0;
+			if (ivalue == 0) app->particleMesh = GeometryFactory::createSphere(1.0f, 10, 8);
+			if (ivalue == 1) app->particleMesh = GeometryFactory::createCube();
+			if (ivalue == 2) app->particleMesh = GeometryFactory::createCylinder(1.0f, 10, 8);
+			std::cout << "\n[CTRL+V] changed mesh" << std::endl;
+		}
+		if (key == GLFW_KEY_V && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
+			ivalue--;
+			if (ivalue < 0) ivalue = 2;
+			if (ivalue == 0) app->particleMesh = GeometryFactory::createSphere(1.0f, 10, 8);
+			if (ivalue == 1) app->particleMesh = GeometryFactory::createCube();
+			if (ivalue == 2) app->particleMesh = GeometryFactory::createCylinder(1.0f, 10, 8);
+			std::cout << "\n[SHIFT+V] changed mesh" << std::endl;
 		}
 		// if (key == GLFW_KEY_E && action == GLFW_PRESS) {
 		// 	std::cout << "\n[E] Exporting animation..." << std::endl;
@@ -411,11 +537,12 @@ class Application {
 
 		if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) { return false; }
 
-		// glEnable(GL_DEPTH_TEST);
 		glEnable(GL_BLEND);
 		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE); // full additive
-		glDepthMask(GL_FALSE);             // don't write depth for particles (so particles don't occlude each other)
+
+		glEnable(GL_DEPTH_TEST);
+		glDepthMask(GL_TRUE);
 
 		glViewport(0, 0, width, height);
 
@@ -637,19 +764,37 @@ void parseIO(int argc, char **argv, Application &app) {
 			          << "  CTRL+4                   Load particle preset: Snow\n"
 			          << "  CTRL+5                   Load particle preset: Fire_Long\n"
 			          << "\n"
-			          << "  CTRL+Q / SHIFT+Q         Increase / decrease scale factor\n"
+			          << "  CTRL+Q / SHIFT+Q         Increase / decrease scale factor (for adjustments)\n"
 			          << "  CTRL+W / SHIFT+W         Increase / decrease maxParticles\n"
 			          << "  CTRL+E / SHIFT+E         Increase / decrease lifetimeMax\n"
 			          << "  CTRL+R / SHIFT+R         Increase / decrease spread\n"
 			          << "  CTRL+T / SHIFT+T         Increase / decrease sizeMin\n"
 			          << "  CTRL+Y / SHIFT+Y         Increase / decrease sizeMax\n"
+			          << "\n"
+			          << "  Color Start (RGBA):\n"
+			          << "  CTRL+A / SHIFT+A         Increase / decrease colorStart.r (Red)\n"
+			          << "  CTRL+S / SHIFT+S         Increase / decrease colorStart.g (Green)\n"
+			          << "  CTRL+D / SHIFT+D         Increase / decrease colorStart.b (Blue)\n"
+			          << "  CTRL+J / SHIFT+J         Increase / decrease colorStart.a (Alpha/Transparency)\n"
+			          << "\n"
+			          << "  Color End (RGBA):\n"
+			          << "  CTRL+F / SHIFT+F         Increase / decrease colorEnd.r (Red)\n"
+			          << "  CTRL+G / SHIFT+G         Increase / decrease colorEnd.g (Green)\n"
+			          << "  CTRL+H / SHIFT+H         Increase / decrease colorEnd.b (Blue)\n"
+			          << "  CTRL+K / SHIFT+K         Increase / decrease colorEnd.a (Alpha/Transparency)\n"
+			          << "\n"
+			          << "  Noise Settings:\n"
 			          << "  CTRL+Z / SHIFT+Z         Increase / decrease noiseAmplitude\n"
 			          << "  CTRL+X / SHIFT+X         Increase / decrease noiseFrequency\n"
 			          << "  CTRL+C / SHIFT+C         Increase / decrease noiseTimeScale\n"
 			          << "\n"
+			          << "  Particle Mesh:\n"
+			          << "  CTRL+V / SHIFT+V         Cycle through particle mesh types (Sphere/Cube/Cylinder)\n"
+			          << "\n"
 			          << "Notes:\n"
 			          << "  - All CTRL combinations increase values.\n"
 			          << "  - All SHIFT combinations decrease values.\n"
+			          << "  - Color (RGBA) values are clamped between 0.0 and 1.0.\n"
 			          << "  - Values cannot go below zero.\n";
 			exit(0);
 		}

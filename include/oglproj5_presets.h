@@ -144,13 +144,14 @@ struct EmitterConfigurator {
 			break;
 
 		case Fire_Long:
-			cfg.withEmitRate(140.0f)
+			cfg.withEmitRate(200.0f)
 			    .withMaxParticles(1200)
-			    .withLifetime(1.6f, 4.0f) // longer-lived
+			    .withLifetime(0.8f, 1.8f) // longer-lived
 			    .withSizeRange(0.03f, 0.16f)
 			    .withColorRange(EmitterConfigurator::rgba(1.0f, 0.55f, 0.12f, 1.0f),  // bright ember
 			                    EmitterConfigurator::rgba(0.12f, 0.04f, 0.01f, 0.0f)) // dark ash -> transparent
-			    .withVelocityRange(glm::vec3(-0.6f, 0.8f, -0.6f), glm::vec3(0.6f, 2.2f, 0.6f))
+			    // .withVelocityRange(glm::vec3(-0.6f, 0.8f, -0.6f), glm::vec3(0.6f, 2.2f, 0.6f))
+				.withVelocityRange(glm::vec3(-0.3f, 1.5f, -0.3f), glm::vec3(0.3f, 3.0f, 0.3f))
 			    .withGravity(glm::vec3(0.0f, -1.8f, 0.0f)) // embers eventually fall (negative Y)
 			    .withDrag(0.65f)
 			    .withNoiseType(EmitterParams::PERLIN)
@@ -184,7 +185,7 @@ struct EmitterConfigurator {
 			    .withVelocityRange(glm::vec3(-1.0f, 6.0f, -1.0f), glm::vec3(1.0f, 9.0f, 1.0f))
 			    .withGravity(glm::vec3(0.0f, -9.81f, 0.0f))
 			    .withDrag(0.1f)
-			    .withNoiseType(EmitterParams::UNIFORM)
+			    .withNoiseType(EmitterParams::PERLIN)
 			    .withNoiseParams(1.0f, 0.2f, 1.0f, 0u)
 			    .withSpawnSphere(0.05f)
 			    .withLocalSpace(true)
