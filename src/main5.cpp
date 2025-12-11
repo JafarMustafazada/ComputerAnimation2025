@@ -233,8 +233,8 @@ class Application {
 			Shader &s = *shader;
 			s.use();
 			particleEmitter->renderAll([&](const glm::mat4 &model, const glm::vec4 &color, float size) {
-				// glDepthMask(GL_FALSE);
-				// glEnable(GL_BLEND);
+				glDepthMask(GL_FALSE);
+				glEnable(GL_BLEND);
 				renderMesh(*particleMesh.get(), model, color);
 			});
 		}
@@ -493,18 +493,20 @@ class Application {
 		// mesh settings
 		if (key == GLFW_KEY_V && (mods & GLFW_MOD_CONTROL) && action == GLFW_PRESS) {
 			ivalue++;
-			if (ivalue == 3) ivalue = 0;
+			if (ivalue == 4) ivalue = 0;
 			if (ivalue == 0) app->particleMesh = GeometryFactory::createSphere(1.0f, 10, 8);
 			if (ivalue == 1) app->particleMesh = GeometryFactory::createCube();
 			if (ivalue == 2) app->particleMesh = GeometryFactory::createCylinder(1.0f, 10, 8);
+			if (ivalue == 3) app->particleMesh = ObjLoader::load("teapot.obj");
 			std::cout << "\n[CTRL+V] changed mesh" << std::endl;
 		}
 		if (key == GLFW_KEY_V && (mods & GLFW_MOD_SHIFT) && action == GLFW_PRESS) {
 			ivalue--;
-			if (ivalue < 0) ivalue = 2;
+			if (ivalue < 0) ivalue = 3;
 			if (ivalue == 0) app->particleMesh = GeometryFactory::createSphere(1.0f, 10, 8);
 			if (ivalue == 1) app->particleMesh = GeometryFactory::createCube();
 			if (ivalue == 2) app->particleMesh = GeometryFactory::createCylinder(1.0f, 10, 8);
+			if (ivalue == 3) app->particleMesh = ObjLoader::load("teapot.obj");
 			std::cout << "\n[SHIFT+V] changed mesh" << std::endl;
 		}
 		// if (key == GLFW_KEY_E && action == GLFW_PRESS) {
